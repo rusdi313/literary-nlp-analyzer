@@ -1,0 +1,29 @@
+{
+    "handmaid": {
+        "control": 185.4,
+        "reproduction": 162.7,
+        "violence": 120.5,
+        "body": 110.2,
+        "sexuality": 95.8,
+        "shame": 130.4,
+        "resistance": 145.2
+    },
+    "beloved": {
+        "violence": 204.5,
+        "body": 166.7,
+        "control": 125.3,
+        "reproduction": 115.8,
+        "sexuality": 105.4,
+        "shame": 140.2,
+        "resistance": 155.6
+    },
+    "god of small": {
+        "sexuality": 134.8,
+        "control": 110.3,
+        "violence": 95.2,
+        "body": 85.6,
+        "reproduction": 75.4,
+        "shame": 120.1,
+        "resistance": 135.5
+    }
+}
