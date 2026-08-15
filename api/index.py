@@ -8,16 +8,23 @@ import nltk
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize
 
+import os
+nltk_data_dir = "/tmp/nltk_data"
+if not os.path.exists(nltk_data_dir):
+    os.makedirs(nltk_data_dir, exist_ok=True)
+if nltk_data_dir not in nltk.data.path:
+    nltk.data.path.append(nltk_data_dir)
+
 try:
     nltk.data.find('tokenizers/punkt')
     nltk.data.find('tokenizers/punkt_tab')
     nltk.data.find('taggers/averaged_perceptron_tagger')
     nltk.data.find('taggers/averaged_perceptron_tagger_eng')
 except LookupError:
-    nltk.download('punkt')
-    nltk.download('punkt_tab')
-    nltk.download('averaged_perceptron_tagger')
-    nltk.download('averaged_perceptron_tagger_eng')
+    nltk.download('punkt', download_dir=nltk_data_dir)
+    nltk.download('punkt_tab', download_dir=nltk_data_dir)
+    nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_dir)
+    nltk.download('averaged_perceptron_tagger_eng', download_dir=nltk_data_dir)
 
 app = FastAPI()
 
