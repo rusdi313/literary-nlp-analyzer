@@ -4,6 +4,20 @@ import pdfplumber
 import json
 import re
 from nltk.stem import SnowballStemmer
+import nltk
+from nltk import pos_tag
+from nltk.tokenize import word_tokenize
+
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('tokenizers/punkt_tab')
+    nltk.data.find('taggers/averaged_perceptron_tagger')
+    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    nltk.download('averaged_perceptron_tagger')
+    nltk.download('averaged_perceptron_tagger_eng')
 
 app = FastAPI()
 
@@ -70,25 +84,38 @@ def analyze_text(text: str, filename: str = ""):
     theme_scores = {k: 0 for k in LEXICON.keys()}
     theme_breakdown = {k: {"keywords": {}, "snippets": []} for k in LEXICON.keys()}
     
+    negations = {"not", "no", "never", "none", "neither", "nor", "without"}
+    
     for chunk in chunks:
-        chunk_lower = chunk.lower()
-        chunk_words = re.findall(r'\b\w+\b', chunk_lower)
-        chunk_stems = [stemmer.stem(w) for w in chunk_words]
+        tokens = word_tokenize(chunk)
+        tokens_lower = [t.lower() for t in tokens]
+        pos_tags = pos_tag(tokens_lower)
+        stems = [stemmer.stem(w) for w in tokens_lower]
         
         chunk_scores = {k: 0 for k in LEXICON.keys()}
         chunk_matched_words = {k: set() for k in LEXICON.keys()}
         
-        for theme, word_map in STEMMED_LEXICON.items():
-            for original_w, stem_w in word_map.items():
-                matches = chunk_stems.count(stem_w)
-                if matches > 0:
-                    chunk_scores[theme] += matches
-                    theme_scores[theme] += matches
-                    
-                    if original_w not in theme_breakdown[theme]["keywords"]:
-                        theme_breakdown[theme]["keywords"][original_w] = 0
-                    theme_breakdown[theme]["keywords"][original_w] += matches
-                    chunk_matched_words[theme].add(original_w)
+        for i, (word, tag) in enumerate(pos_tags):
+            stem_w = stems[i]
+            for theme, word_map in STEMMED_LEXICON.items():
+                for original_w, dict_stem in word_map.items():
+                    if stem_w == dict_stem:
+                        is_valid_pos = tag.startswith('NN') or tag.startswith('VB') or tag.startswith('JJ')
+                        
+                        has_negation = False
+                        start_idx = max(0, i - 3)
+                        preceding_words = tokens_lower[start_idx:i]
+                        if any(neg in preceding_words for neg in negations):
+                            has_negation = True
+                            
+                        if is_valid_pos and not has_negation:
+                            chunk_scores[theme] += 1
+                            theme_scores[theme] += 1
+                            
+                            if original_w not in theme_breakdown[theme]["keywords"]:
+                                theme_breakdown[theme]["keywords"][original_w] = 0
+                            theme_breakdown[theme]["keywords"][original_w] += 1
+                            chunk_matched_words[theme].add(original_w)
         
         for theme, score in chunk_scores.items():
             if score > 0:
@@ -121,42 +148,13 @@ def analyze_text(text: str, filename: str = ""):
     
     # Calculate Final Intensity Score based on Validated Keywords and Total Words
     for theme in theme_scores:
-        raw_count = theme_scores[theme]
-        # Simulate validation (False positives removed, approximately 88% remain like in table)
-        validated_count = int(raw_count * 0.88)
+        validated_count = theme_scores[theme]
         
         # Calculate Intensity Score (Normalized per 10,000 words)
         intensity_score = round((validated_count / total_words) * 10000, 1)
         theme_scores[theme] = intensity_score
         
-    # Load target scores from config file to allow user to sync with Word table easily
-    import os
-    config_path = os.path.join(os.path.dirname(__file__), "target_scores.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                target_scores_config = json.load(f)
-                
-            filename_lower = filename.lower()
-            
-            # Find matching book in config
-            matched_book = None
-            if "handmaid" in filename_lower:
-                matched_book = "handmaid"
-            elif "beloved" in filename_lower:
-                matched_book = "beloved"
-            elif "god of small" in filename_lower or ("god" in filename_lower and "small" in filename_lower):
-                matched_book = "god of small"
-                
-            # If matched, override all themes defined in config
-            if matched_book and matched_book in target_scores_config:
-                overrides = target_scores_config[matched_book]
-                for theme, override_score in overrides.items():
-                    if theme in theme_scores:
-                        theme_scores[theme] = override_score
-        except Exception as e:
-            print(f"Error loading target_scores.json: {e}")
-            
+
     return {
         "theme_scores": theme_scores,
         "dominant_themes": [{"theme": t[0], "score": t[1]} for t in top_overall],
